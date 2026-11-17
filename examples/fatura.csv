@@ -1,0 +1,6 @@
+data;descricao;valor;parcela;tipo
+2026-11-02;Supermercado Exemplo;250,00;;compra
+2026-11-04;Restaurante Ficticio;85,90;;compra
+2026-11-05;Loja Exemplo;120,00;2/5;compra
+2026-11-06;Uber Exemplo;32,40;;compra
+2026-11-07;Loja Exemplo;15,00;;estorno
