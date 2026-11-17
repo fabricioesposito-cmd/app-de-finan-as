@@ -18,6 +18,12 @@ Abra http://127.0.0.1:8765. Crie sua conta pelo formulário; se solicitado, conf
 
 O servidor escuta exclusivamente no computador local. Esta versão não está preparada para exposição direta à internet: hospedagem requer HTTPS, cookies Secure, sessões persistentes com renovação, proteção contra abuso, recuperação de senha e validação adicional de segurança.
 
+## Custos, salário e reserva
+
+A tela inicial **Custos e planejamento** reúne receitas, contas fora dos cartões e faturas. Cadastre o salário, informe o saldo no início do mês, registre pagamentos/recebimentos e defina quanto quer guardar. O painel calcula quanto sobra e quanto fica livre após a reserva; sinaliza falta de dinheiro e faturas ausentes. Você pode editar contas e informar o total a pagar e o pagamento parcial de uma fatura sem duplicar gastos.
+
+O saldo é calculado a partir dos seus registros; não é consulta ao banco. Sem recorrência ou transporte automático de saldos entre meses. Regras e fórmulas em [docs/CUSTOS.md](docs/CUSTOS.md).
+
 ## Primeiro uso
 
 1. Cadastre seu cartão em **Cartões e faturas**.
@@ -48,7 +54,7 @@ Compras idênticas dentro do mesmo arquivo são preservadas. Uma nova importaç�
 
 ## Próximas etapas
 
-Classificação com IA, edição em lote, categorias personalizadas, comparação mensal, assinaturas, projeções de parcelas com substituição pelos dados importados, contas bancárias, pagamento de fatura, transferências e recorrências ainda não estão implementados. Não há dados simulados apresentados como reais. O app não está hospedado publicamente.
+Classificação com IA, edição em lote, categorias personalizadas, comparação mensal, assinaturas, projeções de parcelas com substituição pelos dados importados, contas bancárias sincronizadas, transferências e recorrências ainda não estão implementados. Registro manual de pagamentos de fatura, contas e receitas já está disponível na área de custos. Não há dados simulados apresentados como reais. O app não está hospedado publicamente.
 
 ## Segurança e configuração
 
@@ -63,7 +69,7 @@ O repositório GitHub foi criado pelo usuário como público. Versione apenas c�
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Quatorze testes cobrem PDF textual, senha, endpoint de prévia, datas inferidas, meses em português, OCR simulado, ambiguidades e domínio financeiro. Os testes de domínio cobrem centavos exatos, valores inválidos, estornos, parcelas, reconciliação, contagem de compras repetidas e rejeição de pagamentos. `tests/database_checks.sql` foi executado no Supabase em transação com rollback: gravação, sobreposição, total divergente, isolamento entre dois usuários e exclusão em cascata. Não executa movimentações bancárias.
+26 testes cobrem planejamento mensal, pagamentos de fatura, metas de reserva, receitas pendentes e também PDF textual, senha, endpoint de prévia, datas inferidas, meses em português, OCR simulado, ambiguidades e domínio financeiro. Os testes de domínio cobrem centavos exatos, valores inválidos, estornos, parcelas, reconciliação, contagem de compras repetidas e rejeição de pagamentos. `tests/database_checks.sql` foi executado no Supabase em transação com rollback: gravação, sobreposição, total divergente, isolamento entre dois usuários e exclusão em cascata. Não executa movimentações bancárias.
 
 A tela de acesso foi conferida no navegador. O fluxo autenticado completo pela interface ainda precisa ser validado com a conta do usuário. Nenhuma fatura real foi utilizada. OCR nativo também foi validado com um PDF fictício rasterizado: cinco lançamentos, total líquido R$ 473,30.
 

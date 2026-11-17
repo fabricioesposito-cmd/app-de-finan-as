@@ -67,3 +67,7 @@ PDF implementado: leitura textual por página e OCR para páginas sem texto via 
 ## Resultado da validação inicial
 
 Quatorze testes de domínio/PDF passaram. O OCR nativo reconheceu cinco lançamentos de uma fatura fictícia digitalizada, somando R$ 473,30. Transação de teste PostgreSQL completou gravação, duplicidade, divergência de total, isolamento entre usuários e exclusão em cascata, com rollback. Verificação de segurança do Supabase sem alertas na estrutura inicial. Tela de acesso conferida visualmente. PDF validado com exemplos fictícios, incluindo senha e OCR. Sem validação de IA, contas bancárias ou importação de fatura real.
+
+## Atualização: custos, receitas e reserva
+
+A área Custos e planejamento agora é a tela inicial. A versão entrega cadastro manual de receitas/contas, pagamentos de faturas sem dupla contagem, saldo inicial, meta de reserva e caixa previsto/realizado. Novas tabelas: cash_items, monthly_plans e card_settlements. Detalhes e limites: [CUSTOS.md](CUSTOS.md). Sincronização bancária, recorrências e transferência automática de saldos continuam pendentes.

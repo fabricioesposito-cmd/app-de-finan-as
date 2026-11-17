@@ -8,10 +8,14 @@ import time
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit, parse_qs
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from uuid import UUID
 from app import supabase
 from app.domain import CATEGORIES, cents, parse_csv
 from app.pdf_import import parse_pdf
+from app.planning import valid_month, item_payload, monthly_summary
 
 ROOT = Path(__file__).resolve().parent.parent
 SESSIONS = {}
@@ -38,13 +42,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            if self.path == '/api/state':
+            if urlsplit(self.path).path == '/api/state':
                 session = self.session()
                 if not session:
                     self.send(dict(authenticated=False,token=TOKEN)); return
                 def get(table): return supabase.all_rows('/rest/v1/'+table+'?select=*&order='+('user_id,description' if table=='category_rules' else 'id'),token=session['token'])
                 entries = [dict(row['payload'],id=row['id'],import_id=row['import_id']) for row in get('entries')]
-                self.send(dict(authenticated=True,email=session['email'],cards=get('cards'),imports=get('imports'),entries=entries,budgets=get('budgets'),categories=CATEGORIES,token=TOKEN))
+                month=valid_month(parse_qs(urlsplit(self.path).query).get('month',[datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%Y-%m')])[0])
+                cards,imports=get('cards'),get('imports')
+                plans=get('monthly_plans')
+                plan=next((p for p in plans if p['month']==month),None)
+                summary=monthly_summary(month,get('cash_items'),imports,cards,get('card_settlements'),plan)
+                self.send(dict(authenticated=True,email=session['email'],cards=cards,imports=imports,entries=entries,budgets=get('budgets'),categories=CATEGORIES,token=TOKEN,planning=summary))
             elif self.path == '/api/export':
                 session = self.session()
                 if not session:
@@ -61,7 +70,7 @@ class Handler(BaseHTTPRequestHandler):
                     writer.writerow([e['date'],safe(e['description']),value,safe(e['category']),row['imports']['month'],safe(row['imports']['cards']['name'])])
                 self.send(out.getvalue().encode('utf-8-sig'),mime='text/csv')
             else:
-                files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css'),'/modelo.csv':('../examples/fatura.csv','text/csv'),'/modelo.pdf':('../examples/fatura-ficticia.pdf','application/pdf')}
+                files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/planning.js':('planning.js','text/javascript'),'/style.css':('style.css','text/css'),'/modelo.csv':('../examples/fatura.csv','text/csv'),'/modelo.pdf':('../examples/fatura-ficticia.pdf','application/pdf')}
                 if self.path not in files:
                     self.send({'error':'Não encontrado'},404); return
                 name,mime=files[self.path]
@@ -112,6 +121,30 @@ class Handler(BaseHTTPRequestHandler):
                 existing=supabase.request('/rest/v1/budgets?month=eq.'+quote(data['month'])+'&category=eq.'+quote(data['category']),token=token)
                 payload=dict(month=data['month'],category=data['category'],limit_cents=cents(data['limit']))
                 supabase.request('/rest/v1/budgets'+('?id=eq.'+existing[0]['id'] if existing else ''),'PATCH' if existing else 'POST',payload,token)
+            elif self.path=='/api/cash-item':
+                payload=item_payload(data)
+                item_id=str(UUID(data['id'])) if data.get('id') else None
+                supabase.request('/rest/v1/cash_items'+('?id=eq.'+item_id if item_id else ''),'PATCH' if item_id else 'POST',payload,token)
+            elif self.path=='/api/cash-delete':
+                supabase.request('/rest/v1/cash_items?id=eq.'+str(UUID(data['id'])),'DELETE',token=token)
+            elif self.path=='/api/cash-status':
+                if type(data['settled']) is not bool: raise ValueError('Situação inválida.')
+                supabase.request('/rest/v1/cash_items?id=eq.'+str(UUID(data['id'])),'PATCH',{'settled':data['settled']},token)
+            elif self.path=='/api/month-plan':
+                month=valid_month(data['month'])
+                payload={'month':month,'opening_cents':cents(str(data['opening'])),'savings_target_cents':cents(str(data['target'])),'saved_cents':cents(str(data['saved']))}
+                if payload['savings_target_cents']<0 or payload['saved_cents']<0: raise ValueError('Meta e valor guardado devem ser positivos ou zero.')
+                existing=supabase.request('/rest/v1/monthly_plans?month=eq.'+month,token=token)
+                supabase.request('/rest/v1/monthly_plans'+('?id=eq.'+existing[0]['id'] if existing else ''),'PATCH' if existing else 'POST',payload,token)
+            elif self.path=='/api/card-payment':
+                month=valid_month(data['month']);card_id=str(UUID(data['card_id']))
+                amount=cents(str(data['paid']))
+                if amount<0: raise ValueError('Pagamento não pode ser negativo.')
+                existing=supabase.request('/rest/v1/card_settlements?card_id=eq.'+card_id+'&month=eq.'+month,token=token)
+                bill_total=cents(str(data['bill_total'])) if str(data.get('bill_total','')).strip() else None
+                if bill_total is not None and bill_total<0: raise ValueError('Total da fatura não pode ser negativo.')
+                payload={'month':month,'card_id':card_id,'paid_cents':amount,'bill_total_cents':bill_total}
+                supabase.request('/rest/v1/card_settlements'+('?id=eq.'+existing[0]['id'] if existing else ''),'PATCH' if existing else 'POST',payload,token)
             elif self.path=='/api/logout':
                 cookie=SimpleCookie(self.headers.get('Cookie','')); sid=cookie.get('finance_session')
                 if sid: SESSIONS.pop(sid.value,None)
