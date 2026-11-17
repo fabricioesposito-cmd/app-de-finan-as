@@ -8,9 +8,10 @@ import time
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from app import supabase
 from app.domain import CATEGORIES, cents, parse_csv
+from app.pdf_import import parse_pdf
 
 ROOT = Path(__file__).resolve().parent.parent
 SESSIONS = {}
@@ -29,7 +30,7 @@ class Handler(BaseHTTPRequestHandler):
     def send(self, data, status=200, mime='application/json', cookie=None):
         body = json.dumps(data, ensure_ascii=False).encode() if mime == 'application/json' else data
         self.send_response(status)
-        headers = {'Content-Type':mime+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",'Referrer-Policy':'no-referrer'}
+        headers = {'Content-Type':mime+('' if mime=='application/pdf' else '; charset=utf-8'),'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",'Referrer-Policy':'no-referrer'}
         for key,value in headers.items(): self.send_header(key,value)
         if cookie: self.send_header('Set-Cookie',cookie)
         self.end_headers()
@@ -60,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
                     writer.writerow([e['date'],safe(e['description']),value,safe(e['category']),row['imports']['month'],safe(row['imports']['cards']['name'])])
                 self.send(out.getvalue().encode('utf-8-sig'),mime='text/csv')
             else:
-                files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css'),'/modelo.csv':('../examples/fatura.csv','text/csv')}
+                files={'/':('index.html','text/html'),'/app.js':('app.js','text/javascript'),'/style.css':('style.css','text/css'),'/modelo.csv':('../examples/fatura.csv','text/csv'),'/modelo.pdf':('../examples/fatura-ficticia.pdf','application/pdf')}
                 if self.path not in files:
                     self.send({'error':'Não encontrado'},404); return
                 name,mime=files[self.path]
@@ -88,17 +89,21 @@ class Handler(BaseHTTPRequestHandler):
             if not session:
                 self.send({'error':'Entre na sua conta para continuar.'},401); return
             token=session['token']
-            if self.path=='/api/preview':
-                rows=parse_csv(body)
+            if self.path in ['/api/preview','/api/preview-pdf']:
+                result = parse_pdf(body, self.headers.get('X-Invoice-Month',''), unquote(self.headers.get('X-PDF-Password',''))) if self.path.endswith('-pdf') else {'rows':parse_csv(body)}
+                rows=result['rows']
                 rules={r['description']:r['category'] for r in supabase.all_rows('/rest/v1/category_rules?select=*&order=user_id,description',token=token)}
                 for row in rows:
                     if row['description'] in rules:
                         row['category']=rules[row['description']]; row['rule_applied']=True
-                self.send(dict(rows=rows,digest=hashlib.sha256(body).hexdigest())); return
+                result['digest']=hashlib.sha256(body).hexdigest()
+                self.send(result); return
             data=json.loads(body)
             if self.path=='/api/cards':
                 supabase.request('/rest/v1/cards','POST',dict(name=data['name'].strip(),issuer=data['issuer'].strip(),closing=int(data['closing']),due=int(data['due']),limit_cents=cents(data['limit'])),token)
             elif self.path=='/api/confirm':
+                if any(r.get('needs_review') and not r.get('user_reviewed') for r in data['rows']):
+                    raise ValueError('Confirme a conferência das linhas extraídas do PDF.')
                 supabase.request('/rest/v1/rpc/confirm_import','POST',dict(p_card=data['card'],p_month=data['month'],p_digest=data['digest'],p_expected=cents(data['expected']),p_rows=data['rows']),token)
             elif self.path=='/api/undo':
                 supabase.request('/rest/v1/imports?id=eq.'+quote(str(data['id']),safe=''),'DELETE',token=token)

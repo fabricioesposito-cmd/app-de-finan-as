@@ -4,7 +4,7 @@
 
 App web pessoal em português e reais. O problema central é transformar faturas em uma leitura confiável dos gastos: cartão → arquivo → extração → revisão → categorias → confirmação → painel → orçamento.
 
-O MVP completo incluirá CSV e PDF, análise por cartão/período, compromissos de parcelas futuras e orçamento. A primeira entrega implementa a fatia CSV com persistência Supabase; não equivale ao MVP inteiro.
+O MVP completo incluirá CSV e PDF, análise por cartão/período, compromissos de parcelas futuras e orçamento. A versão atual importa PDF e CSV com persistência Supabase. PDF textual, senha e OCR local no macOS estão implementados; ainda não equivale ao MVP inteiro.
 
 ## Premissas e pendências
 
@@ -15,11 +15,11 @@ Ainda precisamos de amostras reais dos emissores para definir adaptadores PDF e 
 ## Arquitetura e stack
 
 - Interface HTML/CSS/JavaScript responsiva, sem ferramenta de build nesta etapa.
-- Servidor Python com bibliotecas padrão: upload, parser CSV, centavos inteiros e cliente REST Supabase.
+- Servidor Python com pypdf para PDF, parser CSV, centavos inteiros e cliente REST Supabase; OCR opcional via Vision/PDFKit no macOS.
 - Supabase PostgreSQL, Auth e RLS; nenhuma chave privilegiada no app.
 - GitHub para versionamento e verificações automatizadas.
 
-A escolha permite executar a primeira fatia sem instalação de pacotes e separa domínio, interface e persistência. Antes de hospedar, substituir ou endurecer o servidor HTTP de desenvolvimento e implementar gestão de sessões adequada. Um framework pode entrar quando a complexidade justificar.
+A escolha separa domínio, interface e persistência e usa uma dependência principal para leitura PDF. Antes de hospedar, substituir ou endurecer o servidor HTTP de desenvolvimento e implementar gestão de sessões adequada. Um framework pode entrar quando a complexidade justificar.
 
 ## Modelo de dados aplicado
 
@@ -32,7 +32,7 @@ A escolha permite executar a primeira fatia sem instalação de pacotes e separa
 | category_rules | Associação confirmada de descrição exata e categoria por usuário |
 | budgets | Limite em centavos por usuário, mês e categoria |
 
-O payload inclui data da compra, descrição original ou revisada, valor em centavos, tipo, parcela atual/total, categoria e linha do CSV. Evolução: preservar descrição extraída e revisada em campos separados, normalizar lançamentos/categorias e acrescentar auditoria. Atualmente, alterar a descrição na revisão substitui o texto extraído; o número da linha é mantido.
+O payload inclui data da compra, descrição original ou revisada, valor em centavos, tipo, parcela atual/total, categoria e linha do CSV. PDF agora preserva original_description, original_text, source_page, source_line, extraction_method e avisos separadamente dos campos revisados. Evolução: normalizar lançamentos/categorias e acrescentar auditoria.
 
 Futuro: statements para separar fatura de importação; installment_series e parcelas calculadas/importadas; accounts, movements e settlements para receitas, transferências e pagamentos. Pagamento da fatura reduz saldo bancário sem criar consumo novamente. Nenhum desses módulos futuros está ativo.
 
@@ -44,7 +44,7 @@ Regras pessoais prevalecem sobre palavras-chave. Sem regra conhecida, usa-se sug
 
 O banco valida acesso, mês, parcelas, valores, tipos e categorias; reconcilia a soma e grava tudo na mesma transação, serializando confirmações da mesma fatura. Bloqueia sobreposição com importações anteriores. Limitação: não oferece aprovação manual de coincidências legítimas entre arquivos diferentes.
 
-PDF: primeiro texto estruturado, depois adaptadores por emissor, OCR apenas quando necessário. Linhas incertas devem exigir revisão. IA deverá receber o mínimo de dados e tratar o conteúdo do documento como dados sem autoridade para executar instruções.
+PDF implementado: leitura textual por página e OCR para páginas sem texto via helper local do macOS. Até 40 páginas/5 MB, senha opcional, linhas incertas em lista de pendências, resumos separados e reconhecimento de datas numéricas ou meses abreviados em português. Ano ausente é inferido e sinalizado. A confirmação exige aceite de conferência. Adaptadores específicos por emissor e OCR de layouts híbridos continuam pendentes. IA deverá receber o mínimo de dados e tratar o conteúdo do documento como dados sem autoridade para executar instruções.
 
 ## Telas e jornadas
 
@@ -57,7 +57,7 @@ PDF: primeiro texto estruturado, depois adaptadores por emissor, OCR apenas quan
 
 ## Etapas e aceite
 
-1. **Fatia CSV — entregue em código:** confirmar arquivo de exemplo por R$ 473,30; impedir divergência e reimportação; manter dados por usuário; desfazer apenas uma importação. Domínio e banco testados; jornada autenticada de interface pendente.
+1. **Fatia PDF/CSV — entregue em código:** confirmar arquivo de exemplo por R$ 473,30; impedir divergência e reimportação; manter dados por usuário; desfazer apenas uma importação. Domínio e banco testados; jornada autenticada de interface pendente.
 2. **Importação dos emissores reais:** extrair corretamente amostras anonimizadas; reconhecer totais/componentes, registrar texto original e revisões separadamente; testar PDFs textuais e digitalizados. Aceite: todos os lançamentos conferíveis e nenhuma incerteza silenciosa.
 3. **Categorias e análise:** regras editáveis, categorias personalizadas, ações em lote, comparação entre meses e IA opcional. Aceite: correções reutilizadas sem tratar sugestões como confirmação.
 4. **Parcelas e previsões:** séries, meses futuros e substituição de projeções pela fatura real. Aceite: nenhuma dupla contagem em importações sucessivas; previsões rotuladas como calculadas.
@@ -66,4 +66,4 @@ PDF: primeiro texto estruturado, depois adaptadores por emissor, OCR apenas quan
 
 ## Resultado da validação inicial
 
-Cinco testes de domínio passaram. Transação de teste PostgreSQL completou gravação, duplicidade, divergência de total, isolamento entre usuários e exclusão em cascata, com rollback. Verificação de segurança do Supabase sem alertas na estrutura inicial. Tela de acesso conferida visualmente. Sem validação de PDF, IA, contas bancárias ou importação de fatura real.
+Quatorze testes de domínio/PDF passaram. O OCR nativo reconheceu cinco lançamentos de uma fatura fictícia digitalizada, somando R$ 473,30. Transação de teste PostgreSQL completou gravação, duplicidade, divergência de total, isolamento entre usuários e exclusão em cascata, com rollback. Verificação de segurança do Supabase sem alertas na estrutura inicial. Tela de acesso conferida visualmente. PDF validado com exemplos fictícios, incluindo senha e OCR. Sem validação de IA, contas bancárias ou importação de fatura real.
