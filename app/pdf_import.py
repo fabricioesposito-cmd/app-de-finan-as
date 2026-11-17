@@ -73,7 +73,7 @@ def parse_pages(pages, month):
             except ValueError:
                 unresolved.append(dict(page=page_number,line=line_number,text=original,reason='Valor inválido.')); continue
             desc_normalized = normalize(description)
-            if any(term in desc_normalized for term in ['estorno','credito','devolucao']):
+            if any(term in desc_normalized for term in ['estorno','devolucao']) or re.match(r'^credito(?:\s|:|$)',desc_normalized):
                 credit = True
             kind = 'estorno' if 'estorno' in desc_normalized else 'credito' if credit else 'juros' if 'juros' in desc_normalized else 'tarifa' if any(t in desc_normalized for t in ['tarifa','anuidade']) else 'compra'
             value = -abs(value) if credit else abs(value)
@@ -131,7 +131,8 @@ def parse_pdf(data, month, password=''):
         raise
     except Exception:
         raise ValueError('Não foi possível ler o PDF. Verifique a senha e se o arquivo está íntegro.')
-    result = parse_pages(pages, month)
+    from app.inter_pdf import supports, parse_inter
+    result = parse_inter(pages) if supports(pages) else parse_pages(pages, month)
     if not result['rows']:
         result['warnings'].append('Nenhum lançamento identificado automaticamente. Use as linhas pendentes para adicionar compras manualmente ou valide o layout do emissor.')
     return result

@@ -69,13 +69,15 @@ O repositório GitHub foi criado pelo usuário como público. Versione apenas c�
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-26 testes cobrem planejamento mensal, pagamentos de fatura, metas de reserva, receitas pendentes e também PDF textual, senha, endpoint de prévia, datas inferidas, meses em português, OCR simulado, ambiguidades e domínio financeiro. Os testes de domínio cobrem centavos exatos, valores inválidos, estornos, parcelas, reconciliação, contagem de compras repetidas e rejeição de pagamentos. `tests/database_checks.sql` foi executado no Supabase em transação com rollback: gravação, sobreposição, total divergente, isolamento entre dois usuários e exclusão em cascata. Não executa movimentações bancárias.
+33 testes cobrem planejamento mensal, pagamentos de fatura, metas de reserva, receitas pendentes e também PDF textual, senha, endpoint de prévia, datas inferidas, meses em português, OCR simulado, ambiguidades e domínio financeiro. Os testes de domínio cobrem centavos exatos, valores inválidos, estornos, parcelas, reconciliação, contagem de compras repetidas e rejeição de pagamentos. `tests/database_checks.sql` foi executado no Supabase em transação com rollback: gravação, sobreposição, total divergente, isolamento entre dois usuários e exclusão em cascata. Não executa movimentações bancárias.
 
 A tela de acesso foi conferida no navegador. O fluxo autenticado completo pela interface ainda precisa ser validado com a conta do usuário. Nenhuma fatura real foi utilizada. OCR nativo também foi validado com um PDF fictício rasterizado: cinco lançamentos, total líquido R$ 473,30.
 
 ## Limitações da leitura PDF
 
-A extração é genérica e não garante todos os layouts bancários. Linhas quebradas, múltiplas colunas e moedas podem exigir inclusão manual ou adaptador específico do emissor. A igualdade de totais não prova completude. Revise todas as páginas. PDFs com texto parcial sobre imagens ainda podem exigir OCR externo ou ajuste do adaptador. Sem o helper nativo ou fora do macOS, páginas sem texto geram erro explícito; nunca são ignoradas silenciosamente. A senha é usada em memória para abrir o arquivo e não é armazenada.
+A leitura agora inclui um adaptador para o layout Inter com tabelas “Despesas da fatura”. Ele lê somente a fatura atual, reconhece datas como “23 de set. 2026”, separa beneficiário, parcelas, créditos e pagamento de fatura anterior, preserva o cartão de origem e confere os subtotais. Resumos, ofertas, próximas parcelas e taxas informativas ficam fora dos lançamentos. O total identificado pode preencher a revisão automaticamente.
+
+Para outros layouts, a extração continua genérica e não garante todos os formatos bancários. Linhas quebradas, múltiplas colunas e moedas podem exigir inclusão manual ou adaptador específico do emissor. A igualdade de totais não prova completude. Revise todas as páginas. PDFs com texto parcial sobre imagens ainda podem exigir OCR externo ou ajuste do adaptador. Sem o helper nativo ou fora do macOS, páginas sem texto geram erro explícito; nunca são ignoradas silenciosamente. A senha é usada em memória para abrir o arquivo e não é armazenada.
 
 Para gerar novamente o exemplo fictício: `.venv/bin/python scripts/create_example.py`.
 

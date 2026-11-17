@@ -71,3 +71,9 @@ Quatorze testes de domínio/PDF passaram. O OCR nativo reconheceu cinco lançame
 ## Atualização: custos, receitas e reserva
 
 A área Custos e planejamento agora é a tela inicial. A versão entrega cadastro manual de receitas/contas, pagamentos de faturas sem dupla contagem, saldo inicial, meta de reserva e caixa previsto/realizado. Novas tabelas: cash_items, monthly_plans e card_settlements. Detalhes e limites: [CUSTOS.md](CUSTOS.md). Sincronização bancária, recorrências e transferência automática de saldos continuam pendentes.
+
+## Correção: leitura das tabelas de fatura Inter
+
+Novo adaptador delimitado pelas seções Despesas da fatura e pelo cabeçalho de colunas. Lê todas as páginas dessas tabelas e mantém subtotais/resumos separados. Pagamento de fatura anterior não entra no consumo; sinal + representa crédito no layout Inter. Parcelas “02 de 06” e datas com mês em português são reconhecidas. Principal e juros detalhados abaixo de uma parcela não são somados novamente. Conferência compara despesas brutas, créditos, líquido e subtotais por cartão quando esses dados estão presentes.
+
+Testes públicos usam apenas documentos sintéticos. Documentos reais e textos extraídos permanecem fora do repositório.
