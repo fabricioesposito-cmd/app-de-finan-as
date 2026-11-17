@@ -27,9 +27,10 @@ def item_payload(data):
     return dict(description=description,kind=kind,category=category,amount_cents=amount,due_date=due,settled=data.get('settled',False))
 
 
-def monthly_summary(month, items, imports, cards, settlements, plan=None):
+def monthly_summary(month, items, imports, cards, settlements, plan=None, card_extras=None):
     valid_month(month)
     plan=plan or {}
+    card_extras=card_extras or []
     selected=[i for i in items if i['due_date'][:7]==month]
     income=sum(i['amount_cents'] for i in selected if i['kind']=='income')
     received=sum(i['amount_cents'] for i in selected if i['kind']=='income' and i['settled'])
@@ -41,13 +42,14 @@ def monthly_summary(month, items, imports, cards, settlements, plan=None):
         payments=[p for p in settlements if p['card_id']==card['id'] and p['month']==month]
         paid=sum(p['paid_cents'] for p in payments)
         net=sum(i['expected'] for i in batches)
-        if not batches and not payments:
+        extras=sum(e['amount'] for e in card_extras if e['card_id']==card['id'] and e['month']==month)
+        if not batches and not payments and not extras:
             pending_cards.append(card['name']);pending_ids.append(card['id']);continue
         # Crédito de fatura não é dinheiro recebido. Um pagamento já realizado permanece no caixa mesmo se a importação for desfeita.
         override=next((p['bill_total_cents'] for p in payments if p.get('bill_total_cents') is not None),None)
-        amount=max(0,override if override is not None else net,paid)
+        amount=max(0,(override if override is not None else net)+extras,paid)
         due_day=min(card['due'],calendar.monthrange(int(month[:4]),int(month[5:]))[1])
-        bills.append(dict(card_id=card['id'],name=card['name'],amount_cents=amount,imported_cents=net,paid_cents=paid,pending_cents=max(0,amount-paid),due_date=month+'-'+str(due_day).zfill(2),has_import=bool(batches),bill_total_cents=override,overpaid=paid>max(0,override if override is not None else net)))
+        bills.append(dict(card_id=card['id'],name=card['name'],amount_cents=amount,imported_cents=net,forecast_cents=extras,paid_cents=paid,pending_cents=max(0,amount-paid),due_date=month+'-'+str(due_day).zfill(2),has_import=bool(batches),bill_total_cents=override,overpaid=paid>max(0,override if override is not None else net)))
     card_total=sum(b['amount_cents'] for b in bills)
     card_paid=sum(b['paid_cents'] for b in bills)
     opening=plan.get('opening_cents',0)

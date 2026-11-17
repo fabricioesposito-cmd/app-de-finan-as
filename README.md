@@ -18,6 +18,14 @@ Abra http://127.0.0.1:8765. Crie sua conta pelo formulário; se solicitado, conf
 
 O servidor escuta exclusivamente no computador local. Esta versão não está preparada para exposição direta à internet: hospedagem requer HTTPS, cookies Secure, sessões persistentes com renovação, proteção contra abuso, recuperação de senha e validação adicional de segurança.
 
+## Conversa, recorrências e carga inicial
+
+Em **Registrar por conversa**, descreva uma compra/receita, confira os campos e confirme. O planejamento é atualizado após salvar. A interpretação usa regras locais, sem IA externa nesta versão. Parcelas e assinaturas podem ser recorrentes. Compras informadas e previsões são vinculadas à fatura para não contar duas vezes.
+
+Em **Importar planilha**, leia o modelo Custos, escolha canais/contas/cartões e confirme a prévia. A linha Guardar vira meta; os meses preenchidos viram previsões com seus términos preservados. A fonte anexada no chat pode ser lida neste computador pelo botão específico, sem ser enviada ao GitHub.
+
+Em **Recorrências e contas**, acompanhe séries e próximos 12 meses, marque/pule ocorrências, encerre assinaturas e vincule lançamentos já importados. Regras, limites e validação: [docs/CONVERSA_E_RECORRENCIAS.md](docs/CONVERSA_E_RECORRENCIAS.md).
+
 ## Custos, salário e reserva
 
 A tela inicial **Custos e planejamento** reúne receitas, contas fora dos cartões e faturas. Cadastre o salário, informe o saldo no início do mês, registre pagamentos/recebimentos e defina quanto quer guardar. O painel calcula quanto sobra e quanto fica livre após a reserva; sinaliza falta de dinheiro e faturas ausentes. Você pode editar contas e informar o total a pagar e o pagamento parcial de uma fatura sem duplicar gastos.
@@ -54,7 +62,7 @@ Compras idênticas dentro do mesmo arquivo são preservadas. Uma nova importaç�
 
 ## Próximas etapas
 
-Classificação com IA, edição em lote, categorias personalizadas, comparação mensal, assinaturas, projeções de parcelas com substituição pelos dados importados, contas bancárias sincronizadas, transferências e recorrências ainda não estão implementados. Registro manual de pagamentos de fatura, contas e receitas já está disponível na área de custos. Não há dados simulados apresentados como reais. O app não está hospedado publicamente.
+Classificação com IA externa, voz, edição em lote, categorias personalizadas, comparação mensal detalhada, contas bancárias sincronizadas e transferências ainda não estão implementadas. Assinaturas, parcelas, previsão mensal e vínculo com importações já estão disponíveis. Registro manual de pagamentos de fatura, contas e receitas já está disponível na área de custos. Não há dados simulados apresentados como reais. O app não está hospedado publicamente.
 
 ## Segurança e configuração
 
@@ -69,7 +77,7 @@ O repositório GitHub foi criado pelo usuário como público. Versione apenas c�
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-33 testes cobrem planejamento mensal, pagamentos de fatura, metas de reserva, receitas pendentes e também PDF textual, senha, endpoint de prévia, datas inferidas, meses em português, OCR simulado, ambiguidades e domínio financeiro. Os testes de domínio cobrem centavos exatos, valores inválidos, estornos, parcelas, reconciliação, contagem de compras repetidas e rejeição de pagamentos. `tests/database_checks.sql` foi executado no Supabase em transação com rollback: gravação, sobreposição, total divergente, isolamento entre dois usuários e exclusão em cascata. Não executa movimentações bancárias.
+54 testes cobrem planejamento mensal, pagamentos de fatura, metas de reserva, receitas pendentes e também PDF textual, senha, endpoint de prévia, datas inferidas, meses em português, OCR simulado, ambiguidades e domínio financeiro. Os testes de domínio cobrem centavos exatos, valores inválidos, estornos, parcelas, reconciliação, contagem de compras repetidas e rejeição de pagamentos. `tests/database_checks.sql` foi executado no Supabase em transação com rollback: gravação, sobreposição, total divergente, isolamento entre dois usuários e exclusão em cascata. Não executa movimentações bancárias.
 
 A tela de acesso foi conferida no navegador. O fluxo autenticado completo pela interface ainda precisa ser validado com a conta do usuário. Nenhuma fatura real foi utilizada. OCR nativo também foi validado com um PDF fictício rasterizado: cinco lançamentos, total líquido R$ 473,30.
 

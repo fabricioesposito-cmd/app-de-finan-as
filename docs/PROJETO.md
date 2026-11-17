@@ -77,3 +77,7 @@ A área Custos e planejamento agora é a tela inicial. A versão entrega cadastr
 Novo adaptador delimitado pelas seções Despesas da fatura e pelo cabeçalho de colunas. Lê todas as páginas dessas tabelas e mantém subtotais/resumos separados. Pagamento de fatura anterior não entra no consumo; sinal + representa crédito no layout Inter. Parcelas “02 de 06” e datas com mês em português são reconhecidas. Principal e juros detalhados abaixo de uma parcela não são somados novamente. Conferência compara despesas brutas, créditos, líquido e subtotais por cartão quando esses dados estão presentes.
 
 Testes públicos usam apenas documentos sintéticos. Documentos reais e textos extraídos permanecem fora do repositório.
+
+## Atualização: alimentação contínua e recorrências
+
+A versão atual adiciona registro por texto com revisão, parcelas/assinaturas e receitas recorrentes, contas/plataformas, carga inicial do modelo Excel e associação entre previsões/compras informadas e faturas. A consulta calcula projeções sem gerar registros repetidos. Detalhes e limites: [CONVERSA_E_RECORRENCIAS.md](CONVERSA_E_RECORRENCIAS.md). Entrada por texto usa regras locais; IA externa e voz não estão ativas.
