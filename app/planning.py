@@ -24,14 +24,14 @@ def item_payload(data):
     due=date.fromisoformat(data['due_date']).isoformat()
     if type(data.get('settled',False)) is not bool:
         raise ValueError('Situação inválida.')
-    return dict(description=description,kind=kind,category=category,amount_cents=amount,due_date=due,settled=data.get('settled',False))
+    return dict(description=description,kind=kind,category=category,amount_cents=amount,due_date=due,budget_month=valid_month(data.get('month') or data.get('budget_month') or due[:7]),settled=data.get('settled',False))
 
 
 def monthly_summary(month, items, imports, cards, settlements, plan=None, card_extras=None):
     valid_month(month)
     plan=plan or {}
     card_extras=card_extras or []
-    selected=[i for i in items if i['due_date'][:7]==month]
+    selected=[i for i in items if (i.get('budget_month') or i['due_date'][:7])==month]
     income=sum(i['amount_cents'] for i in selected if i['kind']=='income')
     received=sum(i['amount_cents'] for i in selected if i['kind']=='income' and i['settled'])
     expenses=sum(i['amount_cents'] for i in selected if i['kind']=='expense')
@@ -56,7 +56,10 @@ def monthly_summary(month, items, imports, cards, settlements, plan=None, card_e
     target=plan.get('savings_target_cents',0)
     saved=plan.get('saved_cents',0)
     forecast=opening+income-expenses-card_total
-    actual=opening+received-paid_expenses-card_paid-saved
+    # The consumption budget follows budget_month; actual cash follows payment dates.
+    cash_received=sum(i['amount_cents'] for i in items if i['kind']=='income' and i['settled'] and i['due_date'][:7]==month)
+    cash_paid=sum(i['amount_cents'] for i in items if i['kind']=='expense' and i['settled'] and i['due_date'][:7]==month)
+    actual=opening+cash_received-cash_paid-card_paid-saved
     projected_savings=min(max(forecast,0),max(target,saved))
     return dict(month=month,opening_cents=opening,income_cents=income,received_cents=received,receivable_cents=income-received,
                 expenses_cents=expenses,card_cents=card_total,costs_cents=expenses+card_total,

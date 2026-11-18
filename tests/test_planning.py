@@ -95,7 +95,7 @@ class PlanningTests(unittest.TestCase):
     def test_state_route_returns_month_summary(self):
         from app.server import Handler
         handler=object.__new__(Handler);handler.path='/api/state?month=2026-11';handler.session=lambda:{'token':'fixture','email':'fixture@example.invalid'}
-        fixtures={'cards':[CARD],'imports':[bill(150000)],'cash_items':[item('income',800000),item('expense',250000)],'monthly_plans':[{'month':'2026-11','opening_cents':100000,'savings_target_cents':200000}]}
+        fixtures={'cards':[CARD],'imports':[dict(bill(150000),id='batch1')],'cash_items':[dict(item('income',800000),description='Salário',category='Salário'),dict(item('expense',250000),description='Conta',category='Outros')],'monthly_plans':[{'month':'2026-11','opening_cents':100000,'savings_target_cents':200000}]}
         sent=[];handler.send=lambda value,*args:sent.append(value)
         def get(path,token):return fixtures.get(path.split('/')[3].split('?')[0],[])
         with patch('app.server.supabase.all_rows',side_effect=get):handler.do_GET()

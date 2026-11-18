@@ -1,5 +1,6 @@
 """Importa o planejamento mensal da aba Custos; usa valores salvos, não executa fórmulas."""
 import io
+import re
 import zipfile
 from datetime import date,datetime
 from decimal import Decimal,ROUND_HALF_UP
@@ -58,7 +59,7 @@ def parse_workbook(data,mappings=None):
             mapping=mappings.get(key,{})
             kind='income' if group=='income' else 'expense'
             channel=mapping.get('channel') or ('card' if group=='card' else 'cash')
-            rows.append(dict(id=str(index+1),description=label,kind=kind,channel=channel,category='Salário' if kind=='income' and key=='salario' else 'Outras receitas' if kind=='income' else suggest(label),match_pattern=mapping.get('match_pattern',label),values=values,source_group=group,mapping_confirmed=bool(mapping)))
+            rows.append(dict(id=str(index+1),description=label,kind=kind,channel=channel,category='Salário' if kind=='income' and key=='salario' else 'Outras receitas' if kind=='income' else suggest(label),match_pattern=mapping.get('match_pattern',label),values=values,source_group=group,mapping_confirmed=bool(mapping),commitment_type=mapping.get('commitment_type') or ('income' if kind=='income' else 'installment' if re.search(r'\b\d+\s*x\b',key) else 'subscription' if suggest(label)=='Assinaturas' else 'bill')))
         if not rows:raise ValueError('Nenhuma receita ou despesa encontrada no modelo.')
         warnings.append('Os resultados salvos de fórmulas foram lidos; a planilha não é recalculada pelo app.')
         warnings.append('A linha Guardar será importada como meta de reserva, sem virar despesa.')
@@ -84,7 +85,7 @@ def build_rules(preview,choices,card_id,account_id,start_month,honor_status=Fals
             if not amount:current=None;continue
             if current and current['amount_cents']==amount and month_distance(current['end_month'],month)==1:current['end_month']=month
             else:
-                current=dict(description=row['description'],kind=row['kind'],channel=channel,category=row['category'],amount_cents=amount,start_month=month,end_month=month,due_day=15,match_pattern=pattern,card_id=selected_card if channel=='card' else None,account_id=selected_account if channel=='cash' else None,settled_months=[]);segments.append(current)
+                current=dict(description=row['description'],kind=row['kind'],channel=channel,category=row['category'],amount_cents=amount,start_month=month,end_month=month,due_day=15,match_pattern=pattern,card_id=selected_card if channel=='card' else None,account_id=selected_account if channel=='cash' else None,settled_months=[],commitment_type='income' if row['kind']=='income' else choice.get('commitment_type',row.get('commitment_type','bill')));segments.append(current)
             if honor_status and channel=='cash' and normalize(preview['statuses'].get(month,''))=='pago':current['settled_months'].append(month)
         rules.extend(segments)
     return rules,[p for p in preview['plans'] if p['month']>=start_month]

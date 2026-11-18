@@ -1,6 +1,7 @@
 """Extração conservadora: nenhum layout desconhecido é tratado como completo."""
 import io
 import json
+import shutil
 import re
 import subprocess
 import sys
@@ -95,7 +96,7 @@ def parse_pages(pages, month):
 def ocr_page(data, page_number, password=''):
     helper = Path(__file__).resolve().parent.parent / 'work' / 'pdf-ocr'
     if sys.platform != 'darwin' or not helper.is_file():
-        raise ValueError('Este PDF contém página digitalizada. O OCR local precisa ser instalado: consulte o README.')
+        return linux_ocr_page(data,page_number,password)
     with tempfile.TemporaryDirectory(prefix='clareza-ocr-') as folder:
         source = Path(folder) / 'invoice.pdf'
         source.write_bytes(data)
@@ -104,6 +105,24 @@ def ocr_page(data, page_number, password=''):
             return json.loads(result.stdout)['text']
         except (subprocess.SubprocessError, ValueError, KeyError):
             raise ValueError('O OCR não conseguiu ler uma página do PDF. Tente uma cópia com melhor resolução.')
+
+
+def linux_ocr_page(data,page_number,password=''):
+    if not shutil.which('pdftoppm') or not shutil.which('tesseract'):
+        raise ValueError('Este PDF contém página digitalizada. Instale Poppler e Tesseract com português para ler o arquivo.')
+    from pypdf import PdfReader,PdfWriter
+    with tempfile.TemporaryDirectory(prefix='clareza-ocr-') as folder:
+        reader=PdfReader(io.BytesIO(data))
+        if reader.is_encrypted and not reader.decrypt(password):raise ValueError('Senha do PDF inválida.')
+        writer=PdfWriter();writer.add_page(reader.pages[page_number-1])
+        source=Path(folder)/'page.pdf';prefix=Path(folder)/'page'
+        with source.open('wb') as output:writer.write(output)
+        try:
+            subprocess.run(['pdftoppm','-singlefile','-scale-to','1800','-png',str(source),str(prefix)],capture_output=True,timeout=60,check=True)
+            result=subprocess.run(['tesseract',str(prefix)+'.png','stdout','-l','por+eng','--psm','6'],capture_output=True,text=True,timeout=60,check=True)
+            return result.stdout
+        except (subprocess.SubprocessError,OSError):
+            raise ValueError('Não foi possível ler a página digitalizada. Tente uma cópia com melhor resolução.')
 
 
 def parse_pdf(data, month, password=''):

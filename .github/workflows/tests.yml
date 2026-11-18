@@ -8,5 +8,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por fonts-dejavu-core
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m unittest discover -s tests -v
+      - run: docker build --tag clareza-ci .
+      - run: docker run --rm --entrypoint python clareza-ci -c "from app.wsgi import application; print('WSGI startup OK')"

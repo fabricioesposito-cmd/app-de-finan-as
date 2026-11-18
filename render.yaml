@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: clareza-financas
+    runtime: docker
+    plan: free
+    region: virginia
+    healthCheckPath: /healthz
+    envVars:
+      - key: SECURE_COOKIES
+        value: "1"
+      - key: SUPABASE_URL
+        value: https://wwwnbvxrxuheyihtpazv.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false

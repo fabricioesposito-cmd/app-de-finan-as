@@ -1,0 +1,22 @@
+begin;
+insert into auth.users(id,email) values('00000000-0000-4000-8000-000000000096','edit-source-test@example.invalid'),('00000000-0000-4000-8000-000000000097','edit-source-other@example.invalid');
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000096","role":"authenticated"}',true);
+do $test$ declare c uuid;i uuid;d jsonb;begin
+insert into public.cards(name,issuer,closing,due) values('Test card','Fixture',11,18) returning id into c;
+insert into public.cash_items(description,kind,category,amount_cents,due_date,settled) values('Test purchase','expense','Mercado',1500,'2026-11-11',true) returning id into i;
+d:=jsonb_build_object('description','Test purchase','category','Mercado','amount_cents',1500,'date','2026-11-11','month','2026-12','channel','card','card_id',c,'settled',true);
+perform public.edit_manual_entry('cash',i,d);
+if exists(select 1 from public.cash_items where id=i) or not exists(select 1 from public.card_events where id=i and card_id=c and month='2026-12' and purchase_date='2026-11-11') then raise exception 'Conversion failed';end if;
+perform public.edit_manual_entry('event',i,d||'{"amount_cents":1600}'::jsonb);
+if not exists(select 1 from public.card_events where id=i and amount_cents=1600) then raise exception 'Event update failed';end if;
+begin perform public.edit_manual_entry('event',i,d||'{"channel":"cash","account_id":"00000000-0000-4000-8000-000000000098"}'::jsonb);
+raise exception 'Bad destination accepted';exception when foreign_key_violation then null;end;
+if not exists(select 1 from public.card_events where id=i) or exists(select 1 from public.cash_items where id=i) then raise exception 'Atomicity failed';end if;
+perform public.edit_manual_entry('event',i,d||'{"channel":"cash"}'::jsonb);
+if exists(select 1 from public.card_events where id=i) or not exists(select 1 from public.cash_items where id=i and budget_month='2026-12') then raise exception 'Return conversion failed';end if;
+perform public.edit_manual_entry('cash',i,d||'{"channel":"cash","month":"2027-01"}'::jsonb);
+if not exists(select 1 from public.cash_items where id=i and budget_month='2027-01') then raise exception 'Cash update failed';end if;
+perform set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000097","role":"authenticated"}',true);
+begin perform public.edit_manual_entry('cash',i,d);raise exception 'Foreign edit accepted';exception when others then if sqlerrm='Foreign edit accepted' then raise;end if;end;
+end $test$;rollback;select 'All edit branches, month/date, atomicity and user isolation passed; fixtures rolled back' as result;

@@ -1,9 +1,12 @@
 import json
+import os
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 CONFIG = json.loads((Path(__file__).resolve().parent.parent / 'config.json').read_text())
+CONFIG['url']=os.environ.get('SUPABASE_URL',CONFIG['url']).rstrip('/')
+CONFIG['publishable_key']=os.environ.get('SUPABASE_PUBLISHABLE_KEY',CONFIG['publishable_key'])
 
 def request(path, method='GET', data=None, token=None):
     headers = {'apikey': CONFIG['publishable_key'], 'Content-Type': 'application/json'}
