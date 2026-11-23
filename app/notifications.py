@@ -11,6 +11,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 from app import supabase
 from app.snapshot import snapshot, prepare_snapshot
+from app.planning import valid_month
 
 ZONE=ZoneInfo('America/Sao_Paulo')
 
@@ -40,7 +41,7 @@ def validate_subscription(value):
 
 
 def settings(token):
-    rows=supabase.request('/rest/v1/push_subscriptions?select=id,endpoint,enabled,hour,last_sent_at&order=created_at',token=token)
+    rows=supabase.request('/rest/v1/push_subscriptions?select=id,endpoint,enabled,hour,start_month,last_sent_at&order=created_at',token=token)
     return {'configured':configured(),'public_key':os.environ.get('VAPID_PUBLIC_KEY',''),'timezone':'America/Sao_Paulo','subscriptions':rows}
 
 
@@ -49,7 +50,9 @@ def save_subscription(data,token):
     subscription=validate_subscription(data.get('subscription'))
     hour=int(data.get('hour',9))
     if not 0<=hour<=23:raise ValueError('Escolha um horário entre 0 e 23 horas.')
-    return supabase.request('/rest/v1/rpc/save_push_subscription','POST',{'p_endpoint':subscription['endpoint'],'p_keys':subscription['keys'],'p_hour':hour},token)
+    payload={'p_endpoint':subscription['endpoint'],'p_keys':subscription['keys'],'p_hour':hour}
+    if 'start_month' in data:payload['p_start_month']=valid_month(data['start_month'])
+    return supabase.request('/rest/v1/rpc/save_push_subscription','POST',payload,token)
 
 
 def disable_subscription(data,token):
@@ -98,7 +101,8 @@ def test_push(data,token):
     allowed=supabase.request('/rest/v1/rpc/claim_push_test','POST',{'p_id':key},token)
     if not allowed:raise ValueError('Aguarde um minuto antes de enviar outro teste.')
     now=datetime.now(ZONE)
-    finance=snapshot(token,now.strftime('%Y-%m'))['finance']
+    reference=max(now.strftime('%Y-%m'),valid_month(row.get('start_month') or now.strftime('%Y-%m')))
+    finance=snapshot(token,reference)['finance']
     status=send_push({'endpoint':row['endpoint'],'keys':row['keys']},notification(finance,now.date().isoformat(),True))
     if status=='expired':
         disable_subscription({'id':key},token)
@@ -116,6 +120,8 @@ def daily_job(body,signature):
         if abs(time.time()-float(data['sent_at']))>300:return {'error':'Requisição expirada.'},401
         now=datetime.now(ZONE)
         if data['day']!=now.date().isoformat():return {'error':'Dia inválido.'},400
+        if valid_month(data.get('start_month',now.strftime('%Y-%m')))>now.strftime('%Y-%m'):
+            return {'ok':True,'status':'not_due'},200
         finance=prepare_snapshot(data['data'],now.strftime('%Y-%m'))['finance']
         status=send_push(data['subscription'],notification(finance,data['day']))
         return {'ok':status in ('sent','expired'),'status':status},200 if status in ('sent','expired') else 503

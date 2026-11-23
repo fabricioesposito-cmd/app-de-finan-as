@@ -1,6 +1,6 @@
 # Resumo diário do Clareza
 
-No iPhone (iOS 16.4 ou superior), abra o Clareza instalado na tela inicial e toque em **Notificações → Ativar neste aparelho → Permitir**. O padrão é **09:00, horário de Brasília**. A mesma tela permite mudar a hora, enviar um teste e desativar somente aquele aparelho. Não há cobrança por mensagem Web Push. A infraestrutura continua sujeita aos limites dos planos gratuitos existentes.
+No iPhone (iOS 16.4 ou superior), abra o Clareza instalado na tela inicial e toque em **Notificações → Ativar neste aparelho → Permitir**. O padrão é **09:00, horário de Brasília**. A mesma tela permite escolher o mês de referência inicial, mudar a hora, enviar um teste e desativar somente aquele aparelho. Os resumos diários só começam naquele mês, sempre com o orçamento do mês corrente. O teste pode antecipar uma prévia do mês inicial se ele ainda estiver no futuro. Não há cobrança por mensagem Web Push. A infraestrutura continua sujeita aos limites dos planos gratuitos existentes.
 
 O resumo usa o mês atual de Brasília e o mesmo cálculo `prepare_snapshot`/`financial_view` do painel: receitas, compromissos, gastos variáveis e reserva. Não é saldo bancário em tempo real. Valores aparecem na notificação e podem ser exibidos na tela bloqueada, conforme os ajustes do iPhone.
 
@@ -17,7 +17,7 @@ O resumo usa o mês atual de Brasília e o mesmo cálculo `prepare_snapshot`/`fi
 
 ## Implantação e verificação
 
-Aplicar `docs/push-notifications.sql`, configurar os segredos em ambos os provedores, publicar o servidor, então ativar:
+Aplicar `docs/push-notifications.sql` e depois `docs/push-start-month.sql`, configurar os segredos em ambos os provedores, publicar o servidor, então ativar:
 
 ```sql
 select cron.schedule('clareza-daily-push','*/5 * * * *','select private.dispatch_daily_push();');

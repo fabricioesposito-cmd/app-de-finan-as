@@ -5,6 +5,14 @@ select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-00000000
 do $$ declare i uuid;begin
  i:=public.save_push_subscription('https://web.push.apple.com/fixture-owner','{"p256dh":"fixture","auth":"fixture"}',9);
  if i is distinct from public.save_push_subscription('https://web.push.apple.com/fixture-owner','{"p256dh":"fixture","auth":"fixture"}',9) then raise exception 'Upsert duplicated subscription';end if;
+ if i is distinct from public.save_push_subscription('https://web.push.apple.com/fixture-owner','{}',10,'2026-12') then raise exception 'Changed id on start month update';end if;
+ if not exists(select 1 from public.push_subscriptions where id=i and start_month='2026-12' and hour=10) then raise exception 'Start month not saved';end if;
+ perform public.save_push_subscription('https://web.push.apple.com/fixture-owner','{}',9);
+ if not exists(select 1 from public.push_subscriptions where id=i and start_month='2026-12') then raise exception 'Old client overwrote start month';end if;
+ begin
+  perform public.save_push_subscription('https://web.push.apple.com/fixture-owner','{}',9,'2026-13');
+  raise exception 'Invalid month accepted';
+ exception when check_violation then null;end;
  if not public.claim_push_test(i) or public.claim_push_test(i) then raise exception 'Test rate limit failed';end if;
 end $$;
 select set_config('request.jwt.claims','{"sub":"00000000-0000-4000-8000-000000000082","role":"authenticated"}',true);

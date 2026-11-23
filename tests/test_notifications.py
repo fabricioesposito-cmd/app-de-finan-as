@@ -34,6 +34,32 @@ class PushTests(unittest.TestCase):
             self.assertEqual(push.daily_job(raw+b' ',signature)[1],401)
             send.assert_not_called()
 
+    def test_start_month_is_validated_saved_and_preserved_for_old_clients(self):
+        with patch.object(push,'configured',return_value=True),patch.object(push.supabase,'request',return_value='fixture') as request:
+            push.save_subscription({'subscription':subscription(),'hour':9,'start_month':'2026-12'},'fixture-token')
+            self.assertEqual(request.call_args.args[2]['p_start_month'],'2026-12')
+            for month in ['', '2026-13', '0000-01', None]:
+                with self.assertRaises(ValueError):push.save_subscription({'subscription':subscription(),'start_month':month},'fixture-token')
+            push.save_subscription({'subscription':subscription(),'hour':10},'fixture-token')
+            self.assertNotIn('p_start_month',request.call_args.args[2])
+
+    def test_future_start_month_never_sends_a_daily_notification(self):
+        from app.recurrence import add_month
+        future=add_month(datetime.now(push.ZONE).strftime('%Y-%m'),1)
+        raw=json.dumps({'sent_at':time.time(),'day':datetime.now(push.ZONE).date().isoformat(),'start_month':future,'data':{}}).encode()
+        signature=hmac.new(b'fixture-secret',raw,hashlib.sha256).hexdigest()
+        with patch.dict(os.environ,{'PUSH_JOB_SECRET':'fixture-secret'}),patch.object(push,'send_push') as send,patch.object(push,'prepare_snapshot') as prepare:
+            result,status=push.daily_job(raw,signature)
+        self.assertEqual((result,status),({'ok':True,'status':'not_due'},200))
+        send.assert_not_called();prepare.assert_not_called()
+
+    def test_manual_test_previews_selected_future_month(self):
+        row={'id':'00000000-0000-4000-8000-000000000001',**subscription(),'start_month':'9999-01'}
+        with patch.object(push.supabase,'request',side_effect=[[row],True]),patch.object(push,'snapshot',return_value={'finance':{'month':'9999-01','remaining_cents':1000,'deficit_cents':0}}) as snapshot,patch.object(push,'send_push',return_value='sent') as send:
+            self.assertTrue(push.test_push({'id':row['id']},'fixture-token')['ok'])
+        self.assertEqual(snapshot.call_args.args[1],'9999-01')
+        self.assertIn('janeiro de 9999',send.call_args.args[1]['body'])
+
     def test_notification_deficit_and_zero_are_not_misrepresented_as_available(self):
         data={'month':'2026-12','remaining_cents':432712,'deficit_cents':0}
         result=push.notification(data,'2026-12-01')
