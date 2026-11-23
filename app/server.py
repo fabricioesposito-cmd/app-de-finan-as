@@ -14,7 +14,7 @@ from urllib.parse import quote, unquote, urlsplit, parse_qs
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from uuid import UUID, uuid4
-from app import supabase
+from app import supabase, notifications
 from app.domain import CATEGORIES, cents, parse_csv
 from app.pdf_import import parse_pdf
 from app.planning import valid_month, item_payload, monthly_summary
@@ -73,6 +73,10 @@ class Handler(BaseHTTPRequestHandler):
                 month=valid_month(parse_qs(urlsplit(self.path).query).get('month',[datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%Y-%m')])[0])
                 data=snapshot(session['token'],month)
                 self.send(dict(data,authenticated=True,email=session['email'],categories=CATEGORIES,token=TOKEN,has_initial_workbook=(ROOT/'work'/'private-source.json').is_file()))
+            elif self.path == '/api/push/settings':
+                session=self.session()
+                if not session:self.send({'error':'Entre na sua conta.'},401);return
+                self.send(notifications.settings(session['token']))
             elif self.path == '/api/export':
                 session = self.session()
                 if not session:
@@ -89,7 +93,7 @@ class Handler(BaseHTTPRequestHandler):
                     writer.writerow([e['date'],safe(e['description']),value,safe(e['category']),row['imports']['month'],safe(row['imports']['cards']['name'])])
                 self.send(out.getvalue().encode('utf-8-sig'),mime='text/csv')
             else:
-                files={'/':('index.html','text/html'),'/manifest.webmanifest':('manifest.webmanifest','application/manifest+json'),'/icon-180.png':('icon-180.png','image/png'),'/icon-192.png':('icon-192.png','image/png'),'/icon-512.png':('icon-512.png','image/png'),'/app.js':('app.js','text/javascript'),'/app-v2.js':('app-v2.js','text/javascript'),'/style-v2.css':('style-v2.css','text/css'),'/planning.js':('planning.js','text/javascript'),'/capture.js':('capture.js','text/javascript'),'/style.css':('style.css','text/css'),'/modelo.csv':('../examples/fatura.csv','text/csv'),'/modelo.pdf':('../examples/fatura-ficticia.pdf','application/pdf')}
+                files={'/push-sw.js':('push-sw.js','text/javascript'),'/notifications.js':('notifications.js','text/javascript'),'/':('index.html','text/html'),'/manifest.webmanifest':('manifest.webmanifest','application/manifest+json'),'/icon-180.png':('icon-180.png','image/png'),'/icon-192.png':('icon-192.png','image/png'),'/icon-512.png':('icon-512.png','image/png'),'/app.js':('app.js','text/javascript'),'/app-v2.js':('app-v2.js','text/javascript'),'/style-v2.css':('style-v2.css','text/css'),'/planning.js':('planning.js','text/javascript'),'/capture.js':('capture.js','text/javascript'),'/style.css':('style.css','text/css'),'/modelo.csv':('../examples/fatura.csv','text/csv'),'/modelo.pdf':('../examples/fatura-ficticia.pdf','application/pdf')}
                 if self.path not in files:
                     self.send({'error':'Não encontrado'},404); return
                 name,mime=files[self.path]
@@ -98,6 +102,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send({'error':str(error)},400)
 
     def do_POST(self):
+        if self.path=='/api/push/daily':
+            try:size=int(self.headers.get('Content-Length',0))
+            except ValueError:size=0
+            if not 0<size<=5_000_000:self.send({'error':'Tamanho inválido.'},413);return
+            result,status=notifications.daily_job(self.rfile.read(size),self.headers.get('X-Push-Signature',''))
+            self.send(result,status);return
         if self.headers.get('X-App-Token') != TOKEN:
             self.send({'error':'Atualize a página para continuar.'},403); return
         try:
@@ -147,7 +157,13 @@ class Handler(BaseHTTPRequestHandler):
                     if WORKBOOK_PREVIEWS[old]['expires']<time.time():WORKBOOK_PREVIEWS.pop(old,None)
                 self.send(dict(preview,key=key));return
             data=json.loads(body)
-            if self.path=='/api/cards':
+            if self.path=='/api/push/subscribe':
+                self.send({'ok':True,'id':notifications.save_subscription(data,token)});return
+            elif self.path=='/api/push/disable':
+                notifications.disable_subscription(data,token)
+            elif self.path=='/api/push/test':
+                self.send(notifications.test_push(data,token));return
+            elif self.path=='/api/cards':
                 supabase.request('/rest/v1/cards','POST',dict(name=data['name'].strip(),issuer=data['issuer'].strip(),closing=int(data['closing']),due=int(data['due']),limit_cents=cents(data['limit'])),token)
             elif self.path=='/api/confirm':
                 if any(r.get('needs_review') and not r.get('user_reviewed') for r in data['rows']):

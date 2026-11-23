@@ -4,3 +4,4 @@ openpyxl==3.1.5
 et_xmlfile==2.0.0
 gunicorn==23.0.0
 packaging==26.3
+pywebpush==2.1.2
