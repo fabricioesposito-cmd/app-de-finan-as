@@ -65,3 +65,5 @@
  .recent-expenses-card{scroll-margin-top:16px}
  .responsive-table td textarea{min-height:76px;resize:vertical}
 }
+
+.connection-panel{position:fixed;z-index:1100;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(560px,calc(100vw - 24px));padding:14px 16px;display:flex;align-items:center;gap:12px;background:#fff9e9;border:1px solid #e4d4ad;border-radius:12px;box-shadow:0 8px 30px #173f3222;color:#5b5036;font-size:13px;line-height:1.5}.connection-panel span{flex:1;min-width:0}.connection-panel button{min-height:44px;flex-shrink:0;font-size:12px}@media(max-width:450px){.connection-panel{align-items:stretch;flex-direction:column}.connection-panel button{width:100%}}
