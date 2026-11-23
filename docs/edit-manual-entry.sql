@@ -22,8 +22,8 @@ begin
   if entry_kind<>'expense' then raise exception 'Receitas devem entrar em conta';end if;
   if not exists(select 1 from public.cards where id=(p_data->>'card_id')::uuid and user_id=auth.uid()) then raise exception 'Cartão não encontrado';end if;
   if p_source='cash' then
-   insert into public.card_events(id,card_id,month,purchase_date,description,amount_cents,category)
-   values(p_id,(p_data->>'card_id')::uuid,target_month,(p_data->>'date')::date,p_data->>'description',amount,p_data->>'category');
+   insert into public.card_events(id,card_id,month,purchase_date,description,amount_cents,category,registered_at)
+   values(p_id,(p_data->>'card_id')::uuid,target_month,(p_data->>'date')::date,p_data->>'description',amount,p_data->>'category',cash.registered_at);
    delete from public.cash_items where id=p_id and user_id=auth.uid();
   else
    update public.card_events set card_id=(p_data->>'card_id')::uuid,month=target_month,purchase_date=(p_data->>'date')::date,
@@ -31,8 +31,8 @@ begin
   end if;
  else
   if p_source='event' then
-   insert into public.cash_items(id,description,kind,category,amount_cents,due_date,budget_month,settled,account_id)
-   values(p_id,p_data->>'description',entry_kind,p_data->>'category',amount,(p_data->>'date')::date,target_month,(p_data->>'settled')::boolean,(p_data->>'account_id')::uuid);
+   insert into public.cash_items(id,description,kind,category,amount_cents,due_date,budget_month,settled,account_id,registered_at)
+   values(p_id,p_data->>'description',entry_kind,p_data->>'category',amount,(p_data->>'date')::date,target_month,(p_data->>'settled')::boolean,(p_data->>'account_id')::uuid,event.registered_at);
    delete from public.card_events where id=p_id and user_id=auth.uid();
   else
    update public.cash_items set description=p_data->>'description',category=p_data->>'category',amount_cents=amount,

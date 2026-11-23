@@ -11,7 +11,7 @@ def snapshot(token,month):
     names=['cards','imports','budgets','entries','cash_items','monthly_plans','card_settlements','accounts','recurring_rules','recurrence_states','card_events','entry_matches','investor_profiles','savings_schedules']
     with ThreadPoolExecutor(max_workers=6) as executor:
         data=dict(zip(names,executor.map(get,names)))
-    data['entries']=[dict(row['payload'],id=row['id'],import_id=row['import_id'],origin='import') for row in data['entries']]
+    data['entries']=[dict(row['payload'],id=row['id'],import_id=row['import_id'],origin='import',registered_at=row.get('registered_at')) for row in data['entries']]
     # Keep the original statement total as evidence; apply only explicit user edits.
     for batch in data['imports']:
         delta=sum(e['amount']-e.get('original_amount',e['amount']) for e in data['entries'] if e['import_id']==batch['id'])
