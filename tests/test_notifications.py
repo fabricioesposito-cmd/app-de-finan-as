@@ -38,27 +38,41 @@ class PushTests(unittest.TestCase):
         with patch.object(push,'configured',return_value=True),patch.object(push.supabase,'request',return_value='fixture') as request:
             push.save_subscription({'subscription':subscription(),'hour':9,'start_month':'2026-12'},'fixture-token')
             self.assertEqual(request.call_args.args[2]['p_start_month'],'2026-12')
+            push.save_subscription({'subscription':subscription(),'reference_month':'2026-10','start_month':'2026-12'},'fixture-token')
+            self.assertEqual(request.call_args.args[2]['p_start_month'],'2026-10')
             for month in ['', '2026-13', '0000-01', None]:
                 with self.assertRaises(ValueError):push.save_subscription({'subscription':subscription(),'start_month':month},'fixture-token')
             push.save_subscription({'subscription':subscription(),'hour':10},'fixture-token')
             self.assertNotIn('p_start_month',request.call_args.args[2])
 
-    def test_future_start_month_never_sends_a_daily_notification(self):
+    def test_selected_past_and_future_months_are_sent_on_consecutive_days(self):
+        from datetime import timedelta
         from app.recurrence import add_month
-        future=add_month(datetime.now(push.ZONE).strftime('%Y-%m'),1)
-        raw=json.dumps({'sent_at':time.time(),'day':datetime.now(push.ZONE).date().isoformat(),'start_month':future,'data':{}}).encode()
-        signature=hmac.new(b'fixture-secret',raw,hashlib.sha256).hexdigest()
-        with patch.dict(os.environ,{'PUSH_JOB_SECRET':'fixture-secret'}),patch.object(push,'send_push') as send,patch.object(push,'prepare_snapshot') as prepare:
-            result,status=push.daily_job(raw,signature)
-        self.assertEqual((result,status),({'ok':True,'status':'not_due'},200))
-        send.assert_not_called();prepare.assert_not_called()
+        now=datetime.now(push.ZONE)
+        names=['cards','imports','budgets','entries','cash_items','monthly_plans','card_settlements','accounts','recurring_rules','recurrence_states','card_events','entry_matches','investor_profiles','savings_schedules']
+        for offset in (-1,1):
+            month=add_month(now.strftime('%Y-%m'),offset)
+            data={name:[] for name in names}
+            data['cash_items']=[{'id':'chosen-income','description':'Chosen salary','kind':'income','category':'Salário','amount_cents':500000,'due_date':month+'-01','settled':True},{'id':'chosen-cost','description':'Chosen cost','kind':'expense','category':'Mercado','amount_cents':10000,'due_date':month+'-02','settled':True},{'id':'other-income','description':'Current month','kind':'income','category':'Salário','amount_cents':900000,'due_date':now.strftime('%Y-%m')+'-01','settled':True}]
+            data['monthly_plans']=[{'month':month,'opening_cents':0,'savings_target_cents':100000,'saved_cents':0,'savings_override':True}]
+            expected=prepare_snapshot(copy.deepcopy(data),month)['finance']
+            self.assertEqual(expected['remaining_cents'],390000)
+            for step in (0,1):
+                day=(now+timedelta(days=step)).date().isoformat()
+                raw=json.dumps({'sent_at':time.time(),'day':day,('reference_month' if step==0 else 'start_month'):month,'data':data,'subscription':subscription()}).encode()
+                signature=hmac.new(b'fixture-secret',raw,hashlib.sha256).hexdigest()
+                with patch.dict(os.environ,{'PUSH_JOB_SECRET':'fixture-secret'}),patch.object(push,'datetime') as clock,patch.object(push,'send_push',return_value='sent') as send:
+                    clock.now.return_value=now+timedelta(days=step)
+                    result,status=push.daily_job(raw,signature)
+                self.assertEqual((result,status),({'ok':True,'status':'sent'},200))
+                self.assertEqual(send.call_args.args[1],push.notification(expected,day))
 
-    def test_manual_test_previews_selected_future_month(self):
-        row={'id':'00000000-0000-4000-8000-000000000001',**subscription(),'start_month':'9999-01'}
-        with patch.object(push.supabase,'request',side_effect=[[row],True]),patch.object(push,'snapshot',return_value={'finance':{'month':'9999-01','remaining_cents':1000,'deficit_cents':0}}) as snapshot,patch.object(push,'send_push',return_value='sent') as send:
-            self.assertTrue(push.test_push({'id':row['id']},'fixture-token')['ok'])
-        self.assertEqual(snapshot.call_args.args[1],'9999-01')
-        self.assertIn('janeiro de 9999',send.call_args.args[1]['body'])
+    def test_manual_test_uses_the_exact_selected_month(self):
+        for month in ['2000-01','2099-01']:
+            row={'id':'00000000-0000-4000-8000-000000000001',**subscription(),'start_month':month}
+            with patch.object(push.supabase,'request',side_effect=[[row],True]),patch.object(push,'snapshot',return_value={'finance':{'month':month,'remaining_cents':1000,'deficit_cents':0}}) as snapshot,patch.object(push,'send_push',return_value='sent'):
+                self.assertTrue(push.test_push({'id':row['id']},'fixture-token')['ok'])
+            self.assertEqual(snapshot.call_args.args[1],month)
 
     def test_notification_deficit_and_zero_are_not_misrepresented_as_available(self):
         data={'month':'2026-12','remaining_cents':432712,'deficit_cents':0}

@@ -1,8 +1,8 @@
 # Resumo diário do Clareza
 
-No iPhone (iOS 16.4 ou superior), abra o Clareza instalado na tela inicial e toque em **Notificações → Ativar neste aparelho → Permitir**. O padrão é **09:00, horário de Brasília**. A mesma tela permite escolher o mês de referência inicial, mudar a hora, enviar um teste e desativar somente aquele aparelho. Os resumos diários só começam naquele mês, sempre com o orçamento do mês corrente. O teste pode antecipar uma prévia do mês inicial se ele ainda estiver no futuro. Não há cobrança por mensagem Web Push. A infraestrutura continua sujeita aos limites dos planos gratuitos existentes.
+No iPhone (iOS 16.4 ou superior), abra o Clareza instalado na tela inicial e toque em **Notificações → Ativar neste aparelho → Permitir**. O padrão é **09:00, horário de Brasília**. A mesma tela permite escolher o mês de referência dos dados, mudar a hora, enviar um teste e desativar somente aquele aparelho. Os resumos são enviados todos os dias no horário escolhido e mostram o orçamento do mês selecionado, inclusive se for passado ou futuro. O teste usa o mesmo mês selecionado. Não há cobrança por mensagem Web Push. A infraestrutura continua sujeita aos limites dos planos gratuitos existentes.
 
-O resumo usa o mês atual de Brasília e o mesmo cálculo `prepare_snapshot`/`financial_view` do painel: receitas, compromissos, gastos variáveis e reserva. Não é saldo bancário em tempo real. Valores aparecem na notificação e podem ser exibidos na tela bloqueada, conforme os ajustes do iPhone.
+O resumo usa o mês de referência salvo nas preferências e o mesmo cálculo `prepare_snapshot`/`financial_view` do painel: receitas, compromissos, gastos variáveis e reserva. Não é saldo bancário em tempo real. Valores aparecem na notificação e podem ser exibidos na tela bloqueada, conforme os ajustes do iPhone.
 
 ## Operação
 
@@ -17,10 +17,12 @@ O resumo usa o mês atual de Brasília e o mesmo cálculo `prepare_snapshot`/`fi
 
 ## Implantação e verificação
 
-Aplicar `docs/push-notifications.sql` e depois `docs/push-start-month.sql`, configurar os segredos em ambos os provedores, publicar o servidor, então ativar:
+Aplicar `docs/push-notifications.sql` , `docs/push-start-month.sql` e `docs/push-reference-month.sql`, configurar os segredos em ambos os provedores, publicar o servidor, então ativar:
 
 ```sql
 select cron.schedule('clareza-daily-push','*/5 * * * *','select private.dispatch_daily_push();');
 ```
 
-Executar os testes Python, `tests/push_database_checks.sql` e `tests/push_scheduler_checks.sql`. Os testes SQL são transações revertidas: não deixam contas fictícias e não enviam HTTP. O teste do agendador confirma também que o HMAC coincide com os bytes que `pg_net` transmitiria. Conferir o botão de teste em um aparelho real após a concessão de permissão; não é possível autorizar o iPhone a partir do servidor.
+Executar os testes Python, `tests/push_database_checks.sql` e `tests/push_scheduler_checks.sql`. Os testes de propriedade usam transações revertidas. O teste do agendador é somente leitura: confere a definição, as permissões, o cron ativo e cenários de dias e meses, sem chamar o disparador nem gerar HTTP. Os testes Python usam dados fictícios e verificam assinatura, criptografia e cálculo canônico de meses passados e futuros em dias consecutivos. Conferir o botão de teste em um aparelho real após a concessão de permissão; não é possível autorizar o iPhone a partir do servidor.
+
+A coluna `start_month` e o parâmetro RPC `p_start_month` são nomes históricos: armazenam o mês dos dados. A API atual expõe `reference_month`. O agendador não usa esse valor como limite de início. O horário e a data diária usam Brasília; o orçamento usa o mês escolhido.
